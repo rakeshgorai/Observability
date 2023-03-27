@@ -1,0 +1,99 @@
+version: "3"
+
+networks:
+  loki:
+
+
+
+services:
+
+  #myapp:
+  #    image: docker.io/eliteclub:0.0.1-SNAPSHOT
+  #    container_name: eliteclub
+  #    volumes: 
+  #      - type: volume
+  #        source: shared-app-logs1
+  #        target: /workspace/mylogs
+  #        #- shared-app-logs:/workspace/mylogs
+  #    ports:
+  #      - "8080:8080"
+  #    privileged: true
+  #    networks:
+  #      - loki
+  
+  tempo:
+    #image: grafana/tempo:50f076e5
+    image: grafana/tempo:main-7f72fb0-amd64
+    command: ["--config.file=/etc/tempo/tempo-local.yaml"]
+    volumes:
+      - /opt/workspace/devops/tempo:/etc/tempo
+    ports:
+      - "55680:55680"       # jaeger ingest
+      - "3300:3300"  # tempo      
+      - "4318:4318"  # tempo      
+    networks:
+      - loki
+
+  tempo-query:
+    image: grafana/tempo-query:main-7f72fb0-amd64
+    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo/tempo-query.yaml"]
+    volumes:
+      - /opt/workspace/devops/tempo:/etc/tempo
+    ports:
+      - "16686:16686"  # jaeger-ui      
+    networks:
+      - loki
+
+  promtail:
+    image: grafana/promtail:2.2.1
+    container_name: promtail-service
+    volumes:
+      - type: volume
+        source: shared-app-logs
+        target: /opt/logs
+        read_only: true
+      - /opt/workspace/devops/loki:/etc/promtail/
+    command: -config.file=/etc/promtail/promtail.yml
+    networks:
+      - loki
+
+  loki:
+    image: grafana/loki:2.2.1
+    container_name: loki-service
+    volumes:
+      - /opt/workspace/devops/loki:/etc/loki/
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki.yml
+    networks:
+      - loki
+
+  prometheus:
+    image: prom/prometheus:v2.43.0
+    container_name: prometheus-service
+    volumes:
+      - /opt/workspace/devops/prometheus:/etc/prometheus/
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    networks:
+      - loki
+      
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-service
+    ports:
+      - "3000:3000"
+    networks:
+      - loki
+
+volumes:
+  shared-app-logs:
+  shared-app-logs1:
+    #shared-app-logs1:
+    #driver_opts:
+    # type: "nfs"
+    # o: "addr=[docker.host.internal],nolock,soft,rw"
+    # device: "/opt/workspace/devops/volume"

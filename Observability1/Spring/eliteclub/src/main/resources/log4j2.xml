@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration >
+ <Properties>
+    <Property name="LOG_DIR">mylogs</Property>
+  </Properties>
+    <Appenders>
+        <Console name="LogToConsole" target="SYSTEM_OUT">
+            <PatternLayout pattern="trace_id=%mdc{traceId} span_id=%mdc{spanId}  trace_flags=%mdc{traceFlags} %p %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+       
+         <RollingRandomAccessFile name="RollingRandomAccessFile" fileName="${LOG_DIR}/app.log"
+                 filePattern="logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+      <PatternLayout>
+        <Pattern>trace_id=%mdc{traceId} span_id=%mdc{spanId} trace_flags=%mdc{traceFlags} %p %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</Pattern>
+      </PatternLayout>
+      <Policies>
+        <TimeBasedTriggeringPolicy />
+        <SizeBasedTriggeringPolicy size="20 MB"/>
+      </Policies>
+    </RollingRandomAccessFile>
+
+
+ 
+ <!-- <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+    <http>
+        <url>http://192.168.64.7:3100/loki/api/v1/push</url>
+    </http>
+    <format>
+        <label>
+            <pattern>app=my-app,host=${HOSTNAME},level=%level</pattern>
+        </label>
+        <message>
+            <pattern>trace_id=%mdc{traceId} span_id=%mdc{spanId} trace_flags=%mdc{traceFlags} %p %d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n</pattern>
+        </message>
+        <sortByTime>true</sortByTime>
+    </format>
+</appender> -->
+
+
+    </Appenders>
+    <Loggers>
+        <Logger name="com.club" level="DEBUG" additivity="false" >
+            <AppenderRef ref="LogToConsole"/>
+            <AppenderRef ref="RollingRandomAccessFile"/>
+            
+        </Logger>
+        <Logger name="org.springframework.boot" level="ERROR" additivity="false">
+            <AppenderRef ref="LogToConsole"/>
+        </Logger>
+        <Root level="ERROR">
+            <AppenderRef ref="LogToConsole"/>
+            <AppenderRef ref="RollingRandomAccessFile"/>
+        </Root>
+    </Loggers>
+</Configuration>
