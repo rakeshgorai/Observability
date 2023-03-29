@@ -1,0 +1,4 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Tue Mar 28 21:28:27 IST 2023
+opentelemetry-javaagent-1.0.jar>=
+opentelemetry-javaagent-1.0.pom>=

@@ -1,0 +1,161 @@
+version: "3"
+
+services:
+
+  vault:
+      image: vault:1.13.0 
+      container_name: vault
+      #volumes: 
+      #    - shared-app-logs:/workspace/mylogs
+      ports:
+        - "8200:8200"
+      cap_add:
+        - IPC_LOCK    #so that the in-memory data is not paged out to disk
+      environment:
+        - VAULT_ADDR=http://0.0.0.0:8200
+        - VAULT_TOKEN=root
+      entrypoint: ["vault", "server","-dev-root-token-id=root","-dev-tls=false","-dev=true","-dev-listen-address=0.0.0.0:8200","-dev-no-store-token=true"]      
+      #entrypoint:
+        #["vault", "server","-dev-root-token-id=root","-dev-tls=false","-config=vault_config"]     #include this when dev mode is off "-config=vault_config" i.e when the -dev flag is not there or is set to false 
+      networks:
+        - loki
+      configs:             #uncomment this when out of dev mode
+        - vault_config
+      profiles:
+        - vault
+  
+  myapp:
+      image: docker.io/eliteclub:0.0.1-SNAPSHOT
+      container_name: eliteclub
+      volumes: 
+        - type: volume
+          source: shared-app-logs1
+          target: /workspace/mylogs
+          #- shared-app-logs:/workspace/mylogs
+      ports:
+        - "8080:8080"
+      #privileged: true
+      environment:
+        - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318   #If not specified it will default to http://localhost:4318 is the default. If not specified, it will assume this endpoint.
+        - OTEL_EXPORTER_OTLP_INSECURE=true
+        - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+        - OTEL_TRACES_EXPORTER=otlp
+        - OTEL_RESOURCE_ATTRIBUTES=service.name=ELITECLUB
+        - OTEL_METRICS_EXPORTER=none
+        - OTEL_LOGGING_EXPORTER=none
+        - OTEL_JAVAAGENT_DEBUG=true  
+        - OTEL_TRACES_SAMPLER=always_on
+        - VAULT_HOST=vault
+        - VAULT_PORT=8200
+        - JAVA_TOOL_OPTIONS=-javaagent:/workspace/BOOT-INF/lib/opentelemetry-javaagent-1.0.jar
+      depends_on: 
+        vault: 
+          condition: "service_started"    #this is not working. Seems this works only with swarm enabled.
+      networks:
+        - loki
+      profiles:
+        - prod
+        - dev
+      #entrypoint: ["tail", "-f", "/dev/null"]   #uncomment this line to keep the container alive to troubleshoot the container
+  
+  tempo:
+    #image: grafana/tempo:50f076e5
+    image: grafana/tempo:main-7f72fb0-amd64
+    command: ["--config.file=/etc/tempo/tempo-local.yaml"]
+    volumes:
+      - /opt/workspace/devops/tempo:/etc/tempo
+    ports:
+      - "55680:55680"       # jaeger ingest
+      - "3300:3300"  # tempo      
+      - "4318:4318"  # tempo      
+    networks:
+      - loki
+    profiles:
+      - prod
+      - prod2
+
+  tempo-query:
+    image: grafana/tempo-query:main-7f72fb0-amd64
+    command: ["--grpc-storage-plugin.configuration-file=/etc/tempo/tempo-query.yaml"]
+    volumes:
+      - /opt/workspace/devops/tempo:/etc/tempo
+    ports:
+      - "16686:16686"  # jaeger-ui      
+    networks:
+      - loki
+    profiles:
+      - prod
+      - prod2
+
+  promtail:
+    image: grafana/promtail:2.2.1
+    container_name: promtail-service
+    volumes:
+      - type: volume
+        source: shared-app-logs
+        target: /opt/logs
+        read_only: true
+      - /opt/workspace/devops/loki:/etc/promtail/
+    command: -config.file=/etc/promtail/promtail.yml
+    networks:
+      - loki
+    profiles:
+      - prod
+      - prod2
+
+  loki:
+    image: grafana/loki:2.2.1
+    container_name: loki-service
+    volumes:
+      - /opt/workspace/devops/loki:/etc/loki/
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki.yml
+    networks:
+      - loki
+    profiles:
+      - prod
+      - prod2
+
+  prometheus:
+    image: prom/prometheus:v2.43.0
+    container_name: prometheus-service
+    volumes:
+      - /opt/workspace/devops/prometheus:/etc/prometheus/
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    networks:
+      - loki
+    profiles:
+      - prod
+      - prod2
+      
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-service
+    ports:
+      - "3000:3000"
+    networks:
+      - loki
+    profiles:
+      - prod
+      - prod2
+
+networks:
+  loki:
+
+configs:
+  vault_config:  
+    file: ./vault.config
+
+volumes:
+  shared-app-logs:
+  shared-app-logs1:
+    #shared-app-logs1:
+    #driver_opts:
+    # type: "nfs"
+    # o: "addr=[docker.host.internal],nolock,soft,rw"
+    # device: "/opt/workspace/devops/volume"
